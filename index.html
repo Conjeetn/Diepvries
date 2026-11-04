@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Mijn Diepvries</title>
+<meta name="description" content="Weet altijd wat er in je diepvries zit — samen met je partner.">
+<meta name="theme-color" content="#F4F8FF">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Diepvries">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+  :root { --bg: #F4F8FF; --primary: #1E6FD9; --text: #0E2340; --muted: #5B708F; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+  #app { position: fixed; top: env(safe-area-inset-top); left: 0; right: 0; bottom: 0; width: 100%; height: calc(100% - env(safe-area-inset-top)); border: 0; background: var(--bg); }
+  #msg { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px; z-index: 2; background: var(--bg); }
+  #msg img { width: 96px; height: 96px; border-radius: 24px; box-shadow: 0 8px 24px rgba(11, 61, 145, .2); }
+  #msg b { font-size: 20px; }
+  #msg p { margin: 0; color: var(--muted); max-width: 320px; line-height: 1.4; }
+  #msg button { background: var(--primary); color: #fff; border: 0; border-radius: 14px; padding: 14px 22px; font-size: 16px; font-weight: 800; }
+  .spin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid #E6F0FF; border-top-color: var(--primary); animation: sp 1s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="msg"><img src="icon-192.png" alt=""><div class="spin"></div></div>
+<iframe id="app" title="Mijn Diepvries" allow="clipboard-write; web-share" class="hidden"></iframe>
+<script>
+'use strict';
+/* =====================================================================
+   🔧 INSTELLING: plak hier de web-app-URL van je Apps Script (eindigt op /exec)
+   ===================================================================== */
+var APP_URL = 'https://script.google.com/macros/s/AKfycbw1rDseMYdabyTaDReDxgbVXH1IIjqhkePiwm9rMjpjbSki-5w9JGw5AqrDT2CEsvvlKw/exec';
+
+/* Alleen berichten van Google Apps Script-pagina's vertrouwen */
+var TRUSTED_ORIGIN = /^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/;
+var KEY = 'diepvries-link';
+var TOKEN_RE = /^[a-f0-9]{48}$/;
+
+function getToken() { try { var t = localStorage.getItem(KEY); return TOKEN_RE.test(t || '') ? t : ''; } catch (e) { return ''; } }
+function setToken(t) { try { if (t) localStorage.setItem(KEY, t); else localStorage.removeItem(KEY); } catch (e) {} }
+
+var frame = document.getElementById('app'), msg = document.getElementById('msg'), loadTimer = null;
+
+function show(html) { msg.innerHTML = '<img src="icon-192.png" alt="">' + html; msg.classList.remove('hidden'); }
+
+function load() {
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(APP_URL)) {
+    show('<b>Nog niet ingesteld</b><p>Plak de web-app-URL van je Apps Script bovenaan in index.html (APP_URL).</p>');
+    return;
+  }
+  if (!navigator.onLine) {
+    show('<b>Geen verbinding</b><p>Mijn Diepvries heeft internet nodig om je diepvries te openen.</p><button onclick="load()">Opnieuw proberen</button>');
+    return;
+  }
+  show('<div class="spin"></div>');
+  var t = getToken();
+  frame.classList.remove('hidden');
+  frame.src = APP_URL + '?w=1' + (t ? '&t=' + t : '');
+  clearTimeout(loadTimer);
+  loadTimer = setTimeout(function () {
+    show('<b>Dit duurt lang…</b><p>Controleer je internetverbinding.</p><button onclick="load()">Opnieuw proberen</button>');
+  }, 25000);
+}
+frame.addEventListener('load', function () { clearTimeout(loadTimer); msg.classList.add('hidden'); });
+
+/* De app (in het kader) geeft je persoonlijke link door na aanmaken/aansluiten */
+window.addEventListener('message', function (e) {
+  if (!TRUSTED_ORIGIN.test(e.origin)) return;
+  var d = e.data || {};
+  if (d.type === 'dv-token' && TOKEN_RE.test(d.token || '')) { setToken(d.token); load(); }
+  else if (d.type === 'dv-leave') { setToken(''); load(); }
+});
+
+/* Geopend via een persoonlijke link (…/?t=…)? Dan bewaren en de link uit de adresbalk halen */
+(function () {
+  var m = location.search.match(/[?&]t=([a-f0-9]{48})(?:&|$)/);
+  if (m) { setToken(m[1]); history.replaceState(null, '', location.pathname); }
+})();
+
+window.addEventListener('online', function () { if (!msg.classList.contains('hidden')) load(); });
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+load();
+</script>
+</body>
+</html>
